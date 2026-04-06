@@ -1,0 +1,22 @@
+# Never commit cryptographic keys
+privatekey
+**/privatekey
+
+# Source PDFs stay local only (large / rights); do not check in
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+.env
+.env.*
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

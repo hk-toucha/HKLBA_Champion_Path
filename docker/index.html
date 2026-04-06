@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Path to Champion</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        /* CSS Reset for table elements */
+        table, th, td {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-collapse: collapse;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+        
+        /* HKFC-inspired color scheme */
+        :root {
+            --hkfc-blue: #003366;
+            --hkfc-light-blue: #4a7da5;
+            --hkfc-gold: #cc9900;
+            --hkfc-light-gold: #e6c872;
+            --hkfc-light-gray: #f5f5f5;
+            --hkfc-dark-gray: #333333;
+            --hkfc-white: #ffffff;
+            --knocked-out-bg: #f0f0f0;
+            --knocked-out-color: #999;
+        }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            font-size: 16px; 
+            line-height: 1.4; 
+            -webkit-text-size-adjust: 100%; /* Prevent mobile scaling */
+            -ms-text-size-adjust: 100%; 
+            background-color: var(--hkfc-light-gray);
+            color: var(--hkfc-dark-gray);
+        }
+        
+        /* Header-like styling */
+        body::before {
+            content: "";
+            display: block;
+            height: 8px;
+            background: linear-gradient(90deg, var(--hkfc-blue) 70%, var(--hkfc-gold) 30%);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--hkfc-blue);
+        }
+        
+        /* Form elements styling */
+        div { 
+            margin-bottom: 15px; 
+            padding: 10px;
+            background-color: var(--hkfc-white);
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--hkfc-blue);
+        }
+        
+        select, input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--hkfc-light-blue);
+            box-shadow: 0 0 0 2px rgba(74, 125, 165, 0.2);
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 8px;
+            accent-color: var(--hkfc-blue);
+        }
+        
+        #result { 
+            min-height: 50px; 
+            background-color: var(--hkfc-white);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        h3 { 
+            margin-bottom: 15px; 
+            font-size: 18px; 
+            line-height: 1.4; 
+            color: var(--hkfc-blue);
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--hkfc-gold);
+        }
+        
+        /* Table styling */
+        table { 
+            border-collapse: collapse; 
+            margin-top: 15px; 
+            width: 100%; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        th { 
+            background-color: var(--hkfc-blue);
+            color: var(--hkfc-white);
+            font-weight: bold;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        td { 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            text-align: left; 
+            font-size: 14px !important;
+            line-height: 1.4 !important; 
+            white-space: normal; 
+        }
+        
+        tr:nth-child(even) {
+            background-color: var(--hkfc-light-gray);
+        }
+        
+        tr:hover {
+            background-color: rgba(74, 125, 165, 0.1);
+        }
+        
+        /* Style for lists in Potential Opponents column */
+        td ul {
+            margin: 0;
+            padding: 0 0 0 15px;
+            list-style: disc;
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+        }
+        
+        td ul li {
+            margin: 0;
+            padding: 2px 0;
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+        }
+        
+        /* Custom styling for knocked out teams */
+        .knocked-out {
+            color: var(--knocked-out-color);
+            font-style: italic;
+        }
+        
+        /* Fixture link styling */
+        .fixture-link {
+            display: inline-block;
+            margin: 15px 0;
+            padding: 10px 15px;
+            background-color: var(--hkfc-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .fixture-link:hover {
+            background-color: var(--hkfc-light-blue);
+        }
+        
+        /* Mobile-specific adjustments */
+        @media screen and (max-width: 768px) {
+            body {
+                margin: 10px;
+                font-size: 18px; /* Larger font size on mobile */
+            }
+            
+            div {
+                padding: 12px;
+                margin-bottom: 18px;
+            }
+            
+            label {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+            
+            select, input[type="text"] {
+                padding: 12px 14px;
+                font-size: 16px; /* Larger font for inputs */
+                max-width: 100%;
+            }
+            
+            /* Style for knocked out teams in dropdown on mobile */
+            select option.knocked-out {
+                background-color: var(--knocked-out-bg);
+                color: var(--knocked-out-color);
+            }
+            
+            table, th, td { 
+                font-size: 16px !important; 
+                padding: 10px; 
+                line-height: 1.4 !important; 
+            }
+            
+            td ul, td ul li {
+                font-size: 16px !important;
+                line-height: 1.4 !important;
+            }
+            
+            h3 { 
+                font-size: 20px; 
+            }
+            
+            #result {
+                padding: 15px;
+            }
+            
+            .fixture-link {
+                padding: 12px 16px;
+                font-size: 16px;
+            }
+        }
+        
+        /* Additional responsive adjustments for very small screens */
+        @media screen and (max-width: 480px) {
+            body {
+                margin: 8px;
+                font-size: 16px;
+            }
+            
+            div {
+                padding: 10px;
+            }
+            
+            select, input[type="text"] {
+                padding: 10px 12px;
+                font-size: 16px;
+            }
+            
+            table, th, td { 
+                font-size: 14px !important; 
+                padding: 8px; 
+            }
+            
+            h3 { 
+                font-size: 18px; 
+            }
+            
+            .fixture-link {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+        }
+        
+        /* Tablet adjustments */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            body {
+                margin: 15px;
+                font-size: 17px;
+            }
+            
+            select, input[type="text"] {
+                font-size: 16px;
+                padding: 10px;
+            }
+            
+            /* Style for knocked out teams in dropdown on tablet */
+            select option.knocked-out {
+                background-color: var(--knocked-out-bg);
+                color: var(--knocked-out-color);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sort checkbox moved to top -->
+    <div>
+        <label for="sortByDate" style="display: inline-flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="sortByDate" checked>
+            Sort games by fixture last updated date
+        </label>
+    </div>
+    
+    <div>
+        <label for="fileSelect">Select Open Game:</label>
+        <select id="fileSelect">
+            <option value="">Select a game</option>
+            <!-- Options will be populated by JavaScript -->
+        </select>
+    </div>
+    
+    <div>
+        <label for="filterInput">Filter by Player Name (e.g. Chan):</label>
+        <input type="text" id="filterInput">
+    </div>
+    <div>
+        <label for="clubSelect">Filter by Club:</label>
+        <select id="clubSelect">
+            <option value="">All Clubs</option>
+        </select>
+    </div>
+    <div>
+        <label for="teamSelect">Select Team/Player:</label>
+        <select id="teamSelect">
+            <option value="">Select a team</option>
+        </select>
+    </div>
+    <div>
+        <label for="showOpponents" style="display: inline-flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="showOpponents" checked>
+            Show Opponent Teams
+        </label>
+    </div>
+    
+    <!-- Fixture link container moved to just above the result -->
+    <div id="fixtureLinkContainer">
+        <!-- Fixture link will be added here dynamically -->
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        // All JavaScript code remains exactly the same as in the original file
+        let data = null;
+        let selectedIndex = null;
+        let fixtureList = [];
+        let tournamentMap = {};
+
+        // Map tournament selections to local file paths
+        const fileUrls = {
+            'Mixed-Pairs': './data/Mixed-Pairs.gz',
+            'Mixed-Triples': './data/Mixed-Triples.gz',
+            'Mixed-Fours': './data/Mixed-Fours.gz',
+            'M-Nat-Indoor-Singles': './data/M-Nat-Indoor-Singles.gz',
+            'W-Nat-Indoor-Singles': './data/W-Nat-Indoor-Singles.gz',
+            'M-Indoor-Pairs': './data/M-Indoor-Pairs.gz',
+            'W-Indoor-Pairs': './data/W-Indoor-Pairs.gz',
+            'M_Nat_Pairs': './data/M_Nat_Pairs.gz',
+            'W_Nat_Pairs': './data/W_Nat_Pairs.gz',
+            'M-Nat-Singles': './data/M-Nat-Singles.gz',
+            'W-Nat-Singles': './data/W-Nat-Singles.gz',
+            'M_Nat_Triples': './data/M_Nat_Triples.gz',
+            'W_Nat_Triples': './data/W_Nat_Triples.gz',
+            'M_Nat_Fours': './data/M_Nat_Fours.gz',
+            'W_Nat_Fours': './data/W_Nat_Fours.gz',
+            'M_Novice_Singles': './data/M_Novice_Singles.gz',
+            'W_Novice_Singles': './data/W_Novice_Singles.gz',
+            'M-Novice-Pairs': './data/M-Novice-Pairs.gz',
+            'W-Novice-Pairs': './data/W-Novice-Pairs.gz',
+            'M-2x4x2-Pairs': './data/M-2x4x2-Pairs.gz',
+            'W-2x4x2-Pairs': './data/W-2x4x2-Pairs.gz'
+        };
+
+        // Define the original options order
+        const originalOptions = [
+            'M-Nat-Singles', 'M_Nat_Pairs', 'M_Nat_Triples', 'M_Nat_Fours',
+            'M-Nat-Indoor-Singles', 'M-Indoor-Pairs', 'M-2x4x2-Pairs',
+            'M_Novice_Singles', 'M-Novice-Pairs', 'W-Nat-Singles',
+            'W_Nat_Pairs', 'W_Nat_Triples', 'W_Nat_Fours',
+            'W-Nat-Indoor-Singles', 'W-Indoor-Pairs', 'W-2x4x2-Pairs',
+            'W_Novice_Singles', 'W-Novice-Pairs','Mixed-Pairs', 'Mixed-Triples', 'Mixed-Fours'
+        ];
+
+        // Load fixture list when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('data/fixture_list.json');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch fixture_list.json: ${response.statusText}`);
+                }
+                fixtureList = await response.json();
+                
+                // Create a mapping for easier lookup
+                fixtureList.forEach(item => {
+                    tournamentMap[item[0]] = {
+                        pdfName: item[1],
+                        fullUrl: item[2],
+                        creationDate: item[3]
+                    };
+                });
+                
+                // Populate the tournament dropdown (default: sorted by date)
+                populateTournamentDropdown(true);
+            } catch (error) {
+                console.error('Error loading fixture list:', error);
+                // Fallback to original options if fixture list fails to load
+                populateFallbackTournamentDropdown();
+            }
+        });
+
+        // Function to populate tournament dropdown
+        function populateTournamentDropdown(sortByDate = true) {
+            const fileSelect = document.getElementById('fileSelect');
+            // Clear existing options except the first one
+            while (fileSelect.options.length > 1) {
+                fileSelect.remove(1);
+            }
+            
+            if (sortByDate) {
+                // Sort by date (descending) - latest date first
+                let sortedFixtures = [...fixtureList];
+                sortedFixtures.sort((a, b) => new Date(b[3]) - new Date(a[3]));
+                
+                // Add options from fixture list
+                sortedFixtures.forEach(item => {
+                    const [baseName, , , creationDate] = item;
+                    const opt = document.createElement('option');
+                    opt.value = baseName;
+                    opt.textContent = `${baseName} - v.${creationDate}`;
+                    opt.dataset.creationDate = creationDate;
+                    fileSelect.appendChild(opt);
+                });
+                
+                // Add any tournaments in fileUrls that aren't in fixtureList
+                for (const tournamentName in fileUrls) {
+                    if (!tournamentMap[tournamentName]) {
+                        const opt = document.createElement('option');
+                        opt.value = tournamentName;
+                        opt.textContent = `${tournamentName} - v.unknown`;
+                        fileSelect.appendChild(opt);
+                    }
+                }
+            } else {
+                // Use the predefined originalOptions order when not sorting by date
+                originalOptions.forEach(option => {
+                    const opt = document.createElement('option');
+                    opt.value = option;
+                    
+                    // Check if we have fixture data for this option
+                    if (tournamentMap[option]) {
+                        opt.textContent = `${option} - v.${tournamentMap[option].creationDate}`;
+                    } else {
+                        opt.textContent = `${option} - v.unknown`;
+                    }
+                    
+                    fileSelect.appendChild(opt);
+                });
+            }
+        }
+        
+        // Fallback function if fixture list fails to load
+        function populateFallbackTournamentDropdown() {
+            const fileSelect = document.getElementById('fileSelect');
+            
+            originalOptions.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.textContent = `${option} - v.unknown`;
+                fileSelect.appendChild(opt);
+            });
+        }
+
+        // Toggle sorting between date and predefined order
+        const sortCheckbox = document.getElementById('sortByDate');
+        sortCheckbox.addEventListener('change', () => {
+            populateTournamentDropdown(sortCheckbox.checked);
+        });
+
+        // Update fixture link when tournament is selected
+        function updateFixtureLink(tournamentName) {
+            const linkContainer = document.getElementById('fixtureLinkContainer');
+            linkContainer.innerHTML = '';
+            
+            if (tournamentMap[tournamentName]) {
+                const { fullUrl, pdfName } = tournamentMap[tournamentName];
+                const link = document.createElement('a');
+                link.className = 'fixture-link';
+                link.textContent = `Download LBA fixture PDF file of the ${tournamentName}`;
+                link.href = '#';
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // If already downloading/ready, let browser handle the blob link click
+                    if (link.dataset.blobReady === 'true') {
+                        // Open the blob URL in a new tab (or trigger download via download attr)
+                        window.open(link.dataset.blobUrl, '_blank', 'noopener');
+                        return;
+                    }
+                    // If we set an external URL (fallback for cross-origin resources), open it
+                    if (link.dataset.external === 'true') {
+                        window.open(link.href, '_blank', 'noopener');
+                        return;
+                    }
+                }, { once: false });
+                linkContainer.appendChild(link);
+
+                // Attempt to fetch the PDF only when same-origin; otherwise fall back to opening external URL
+                (async () => {
+                    try {
+                        // Determine if the fullUrl is same-origin; if not, we cannot fetch it due to CORS
+                        let sameOrigin = true;
+                        try {
+                            const parsed = new URL(fullUrl, location.href);
+                            sameOrigin = parsed.origin === location.origin;
+                        } catch (e) {
+                            // If URL parsing fails, assume external
+                            sameOrigin = false;
+                        }
+
+                        if (!sameOrigin) {
+                            // Cannot fetch cross-origin resource without CORS; provide a cache-busted external link
+                            const cacheBusted = fullUrl + (fullUrl.includes('?') ? '&' : '?') + 'cacheBust=' + Date.now();
+                            link.href = cacheBusted;
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            link.dataset.external = 'true';
+                            link.textContent = `Open LBA fixture PDF file of the ${tournamentName}`;
+                            return;
+                        }
+
+                        // Same-origin: safe to fetch and create blob URL
+                        link.textContent = `Downloading ${tournamentName}...`;
+                        const resp = await fetch(fullUrl, { cache: 'no-store' });
+                        if (!resp.ok) throw new Error(`Failed to download: ${resp.statusText}`);
+                        const blob = await resp.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        link.dataset.blobReady = 'true';
+                        link.dataset.blobUrl = blobUrl;
+                        // Suggest a filename for download
+                        const suggestedName = pdfName || `${tournamentName}.pdf`;
+                        // Replace the link to trigger a direct download when clicked
+                        link.href = blobUrl;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.download = suggestedName;
+                        link.textContent = `Open/download LBA fixture PDF file of the ${tournamentName}`;
+                        // Revoke the blob URL after some time to free memory (keeps it available briefly)
+                        setTimeout(() => {
+                            try { URL.revokeObjectURL(blobUrl); } catch (e) { /* ignore */ }
+                        }, 60 * 1000);
+                    } catch (err) {
+                        console.error('Download error:', err);
+                        // Fallback: use cache-busted URL so browser will request fresh copy (external)
+                        const cacheBusted = fullUrl + (fullUrl.includes('?') ? '&' : '?') + 'cacheBust=' + Date.now();
+                        link.href = cacheBusted;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.dataset.external = 'true';
+                        link.textContent = `Open LBA fixture PDF file of the ${tournamentName}`;
+                    }
+                })();
+            }
+        }
+
+        // Load and decompress gzip JSON file when tournament is selected
+        const fileSelect = document.getElementById('fileSelect');
+        fileSelect.addEventListener('change', async () => {
+            const selectedFile = fileSelect.value;
+            updateFixtureLink(selectedFile);
+            
+            if (selectedFile) {
+                try {
+                    // Fetch the gzip file from local path
+                    const response = await fetch(fileUrls[selectedFile], {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/octet-stream'
+                        }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${selectedFile}.gz: ${response.statusText}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    // Decompress using pako
+                    const decompressed = pako.ungzip(uint8Array, { to: 'string' });
+                    // Log the decompressed content for debugging
+                    // console.log('Decompressed content:', decompressed);
+                    try {
+                        data = JSON.parse(decompressed);
+                    } catch (parseError) {
+                        throw new Error(`Invalid JSON in ${selectedFile}.gz: ${parseError.message}`);
+                    }
+                    document.getElementById('teamSelect').innerHTML = '<option value="">Select a team</option>'; // Clear team select
+                    selectedIndex = null;
+                    populateClubs();
+                    // populate all the teams initially
+                    populateTeams('', '');
+                    document.getElementById('result').innerHTML = ''; // Clear result
+                } catch (error) {
+                    alert('Error processing file: ' + error.message);
+                    console.error('Error details:', error);
+                }
+            } else {
+                // Clear the fixture link if no tournament is selected
+                document.getElementById('fixtureLinkContainer').innerHTML = '';
+            }
+        });
+
+        // Populate club dropdown with unique clubs, HKFC first if exists
+        function populateClubs() {
+            const clubSelect = document.getElementById('clubSelect');
+            clubSelect.innerHTML = '<option value="">All Clubs</option>';
+            if (!data) return;
+            let clubs = [...new Set(data.map(team => team.club))].sort();
+            // Move "HKFC" to the front if it exists
+            const hkfcIndex = clubs.indexOf("HKFC");
+            if (hkfcIndex !== -1) {
+            clubs.splice(hkfcIndex, 1);
+            clubs.unshift("HKFC");
+            }
+            clubs.forEach(club => {
+            const opt = document.createElement('option');
+            opt.value = club;
+            opt.textContent = club;
+            clubSelect.appendChild(opt);
+            });
+        }
+
+        // Filter input event for player name
+        const filterInput = document.getElementById('filterInput');
+        filterInput.addEventListener('input', () => {
+            if (data) {
+                const club = document.getElementById('clubSelect').value;
+                populateTeams(filterInput.value.toLowerCase(), club);
+            }
+        });
+
+        // Club select event
+        const clubSelect = document.getElementById('clubSelect');
+        clubSelect.addEventListener('change', () => {
+            if (data) {
+                populateTeams(filterInput.value.toLowerCase(), clubSelect.value);
+            }
+        });
+
+        // Function to populate team select based on filters
+        function populateTeams(playerFilter, clubFilter) {
+            const teamSelect = document.getElementById('teamSelect');
+            teamSelect.innerHTML = '<option value="">Select a team</option>';
+            if (!data) return;
+            // Sort teams: those with HA first, then those without HA
+            // console.log('Populating teams with playerFilter:', playerFilter, 'clubFilter:', clubFilter);
+            const sortedTeams = data
+                .map((team, index) => ({ team, index }))
+                .filter(({ team }) => {
+                    const matchesPlayer = team.players.some(player => player.toLowerCase().includes(playerFilter));
+                    const matchesClub = clubFilter === '' || team.club === clubFilter;
+                    return matchesPlayer && matchesClub;
+                })
+                .sort((a, b) => {
+                    const hasA = a.team.HA && a.team.HA.trim() !== '';
+                    const hasB = b.team.HA && b.team.HA.trim() !== '';
+                    return hasA === hasB ? 0 : hasA ? -1 : 1;
+                });
+            // console.log('Filtered and sorted teams:', sortedTeams);
+            sortedTeams.forEach(({ team, index }) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                const isKnockedOut = !team.HA || team.HA.trim() === '';
+                opt.textContent = `${isKnockedOut ? '[NA] - ' : ''}${team.club} - ${team.players.join(", ")}`;
+                if (isKnockedOut) {
+                    opt.className = 'knocked-out';
+                }
+                // console.log('Adding team to select:', opt.textContent);
+                teamSelect.appendChild(opt);
+            });
+        }
+
+        // Function to render the result table
+        function renderResult() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            if (!data || selectedIndex === null) return;
+            const team = data[selectedIndex];
+            const teamDisplay = `${team.club} - ${team.players.join(", ")}`;
+            const showOpponentsCheckbox = document.getElementById('showOpponents');
+            const showOpponents = showOpponentsCheckbox.checked;
+            if (!team.HA || team.HA.trim() === '') {
+                resultDiv.innerHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><td>Path to Champion is not available</td></tr></table>`;
+                return;
+            }
+            const paths = team.path; // Each item: [round, round_ref]
+            const has = team.HA.split('');
+            let tableHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><th>Round - GameRef</th><th>Home/Away<br>Deadline</th>`;
+            if (showOpponents) {
+                tableHTML += '<th>Potential Opponents</th>';
+            }
+            tableHTML += '</tr>';
+            paths.forEach((item, i) => {
+                const [round, round_ref, rawDeadline] = item;
+                let deadline;
+                if (typeof rawDeadline === 'undefined' || rawDeadline === null || String(rawDeadline).trim().toUpperCase() === 'TBC') {
+                    deadline = 'Date: TBC';
+                } else {
+                    deadline = `${rawDeadline}`;
+                }
+                const haText = has[i] === 'H' ? 'Home' : 'Away';
+                // Combine round and ref in one column
+                const roundText = `${round} - ${round_ref}`;
+                const haColored = has[i] === 'H'
+                    ? `<strong style="color: var(--hkfc-blue);">${haText}</strong>`
+                    : `<strong style="color: #FFA500;">${haText}</strong>`;
+                tableHTML += `<tr><td>${roundText}</td><td>${haColored}<br>${deadline}</td>`;
+                if (showOpponents) {
+                    const opposite = has[i] === 'H' ? 'A' : 'H';
+                    const prefix = i > 0 ? team.HA.slice(0, i) : '';
+                    const teamTree = team.tree;
+                    const opponents = data.filter(other => {
+                        return other !== team &&
+                               other.HA &&
+                               other.HA.length >= i + 1 &&
+                               other.HA[i] === opposite &&
+                               (i === 0 || other.HA.slice(0, i) === prefix) &&
+                               other.tree === teamTree;
+                    }).map(other => `<li>${other.club} - ${other.players.join(", ")} - ${other.home_green}</li>`);
+                    const opponentsText = opponents.length > 0 ? `<ul>${opponents.join("")}</ul>` : "None";
+                    tableHTML += `<td>${opponentsText}</td>`;
+                }
+                tableHTML += '</tr>';
+            });
+            tableHTML += '</table>';
+            resultDiv.innerHTML = tableHTML;
+        }
+
+        // Team select event
+        const teamSelect = document.getElementById('teamSelect');
+        teamSelect.addEventListener('change', () => {
+            selectedIndex = teamSelect.value ? parseInt(teamSelect.value) : null;
+            renderResult();
+        });
+
+        // Show opponents checkbox event
+        const showOpponentsCheckbox = document.getElementById('showOpponents');
+        showOpponentsCheckbox.addEventListener('change', () => {
+            renderResult();
+        });
+    </script>
+</body>
+</html>

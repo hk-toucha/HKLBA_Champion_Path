@@ -1,0 +1,239 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lawn Bowls Tournament Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+        div { margin-bottom: 10px; }
+        #result { min-height: 50px; }
+        h3 { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div>
+        <label for="fileSelect">Select Tournament:</label>
+        <select id="fileSelect">
+            <option value="">Select a tournament</option>
+            <option value="Mixed-Triples-2025">Mixed-Triples-2025</option>
+            <option value="M-Indoor-Pairs-2025">M-Indoor-Pairs-2025</option>
+        </select>
+        <button id="loadButton">Load</button>
+    </div>
+    <div>
+        <label for="filterInput">Filter by Player Name:</label>
+        <input type="text" id="filterInput">
+    </div>
+    <div>
+        <label for="clubSelect">Filter by Club:</label>
+        <select id="clubSelect">
+            <option value="">All Clubs</option>
+        </select>
+    </div>
+    <div>
+        <label for="teamSelect">Select Team/Player:</label>
+        <select id="teamSelect">
+            <option value="">Select a team</option>
+        </select>
+    </div>
+    <div>
+        <input type="checkbox" id="showOpponents" checked>
+        <label for="showOpponents">Show Opponent Teams</label>
+    </div>
+    <div id="result"></div>
+
+    <script>
+        let data = null;
+        let selectedIndex = null;
+
+        // Load and decompress gzip JSON file when Load button is clicked
+        const loadButton = document.getElementById('loadButton');
+        loadButton.addEventListener('click', async () => {
+            const fileSelect = document.getElementById('fileSelect');
+            const selectedFile = fileSelect.value;
+            if (selectedFile) {
+                try {
+                    // Fetch the gzip file from ../data/
+                    const response = await fetch(`./data/${selectedFile}.gz`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${selectedFile}.gz: ${response.statusText}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    // Decompress using pako
+                    const decompressed = pako.ungzip(uint8Array, { to: 'string' });
+                    data = JSON.parse(decompressed);
+                    populateClubs();
+                    populateTeams('', '');
+                    document.getElementById('result').innerHTML = ''; // Clear result
+                    document.getElementById('teamSelect').innerHTML = '<option value="">Select a team</option>'; // Clear team select
+                    selectedIndex = null;
+                } catch (error) {
+                    alert('Error processing file: ' + error.message);
+                }
+            } else {
+                alert('Please select a tournament.');
+            }
+        });
+
+        // Populate club dropdown with unique clubs
+        function populateClubs() {
+            const clubSelect = document.getElementById('clubSelect');
+            clubSelect.innerHTML = '<option value="">All Clubs</option>';
+            if (!data) return;
+            const clubs = [...new Set(data.map(team => team.club))].sort();
+            clubs.forEach(club => {
+                const opt = document.createElement('option');
+                opt.value = club;
+                opt.textContent = club;
+                clubSelect.appendChild(opt);
+            });
+        }
+
+        // Filter input event for player name
+        const filterInput = document.getElementById('filterInput');
+        filterInput.addEventListener('input', () => {
+            if (data) {
+                const club = document.getElementById('clubSelect').value;
+                populateTeams(filterInput.value.toLowerCase(), club);
+            }
+        });
+
+        // Club select event
+        const clubSelect = document.getElementById('clubSelect');
+        clubSelect.addEventListener('change', () => {
+            if (data) {
+                populateTeams(filterInput.value.toLowerCase(), clubSelect.value);
+            }
+        });
+
+        // Function to populate team select based on filters
+        function populateTeams(playerFilter, clubFilter) {
+            const teamSelect = document.getElementById('teamSelect');
+            teamSelect.innerHTML = '<option value="">Select a team</option>';
+            if (!data) return;
+            // Sort teams: those with HA first, then those without HA
+            const sortedTeams = data
+                .map((team, index) => ({ team, index }))
+                .filter(({ team }) => {
+                    const matchesPlayer = team.players.some(player => player.toLowerCase().includes(playerFilter));
+                    const matchesClub = !clubFilter || team.club === clubFilter;
+                    return matchesPlayer && matchesClub;
+                })
+                .sort((a, b) => {
+                    const hasA = a.team.HA && a.team.HA.trim() !== '';
+                    const hasB = b.team.HA && b.team.HA.trim() !== '';
+                    return hasA === hasB ? 0 : hasA ? -1 : 1;
+                });
+            sortedTeams.forEach(({ team, index }) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = `${team.club} - ${team.players.join(", ")}`;
+                if (!team.HA || team.HA.trim() === '') {
+                    opt.style.backgroundColor = 'lightgrey';
+                }
+                teamSelect.appendChild(opt);
+            });
+        }
+
+        // Function to render the result table
+        function renderResult() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            if (!data || selectedIndex === null) return;
+            const team = data[selectedIndex];
+            const teamDisplay = `${team.club} - ${team.players.join(", ")}`;
+            const showOpponentsCheckbox = document.getElementById('showOpponents');
+            const showOpponents = showOpponentsCheckbox.checked;
+            if (!team.HA || team.HA.trim() === '') {
+                resultDiv.innerHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><td>Path to Champion is not available</td></tr></table>`;
+                return;
+            }
+            const paths = team.path; // From early rounds to Final
+            const has = team.HA.split('');
+            let tableHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><th>Round</th><th>Home/Away</th>`;
+            if (showOpponents) {
+                tableHTML += '<th>Potential Opponents</th>';
+            }
+            tableHTML += '</tr>';
+            paths.forEach((round, i) => {
+                const haText = has[i] === 'H' ? 'Home' : 'Away';
+                tableHTML += `<tr><td>${round}</td><td>${haText}</td>`;
+                if (showOpponents) {
+                    const opposite = has[i] === 'H' ? 'A' : 'H';
+                    const prefix = i > 0 ? team.HA.slice(0, i) : '';
+                    const teamTree = team.tree;
+                    const opponents = data.filter(other => {
+                        return other !== team &&
+                               other.HA &&
+                               other.HA.length >= i + 1 &&
+                               other.HA[i] === opposite &&
+                               (i === 0 || other.HA.slice(0, i) === prefix) &&
+                               other.tree === teamTree;
+                    }).map(other => `${other.club} - ${other.players.join(", ")} - ${other.home_green}`);
+                    const opponentsText = opponents.length > 0 ? opponents.join("<br>") : "None";
+                    tableHTML += `<td>${opponentsText}</td>`;
+                }
+                tableHTML += '</tr>';
+            });
+            tableHTML += '</table>';
+            resultDiv.innerHTML = tableHTML;
+        }
+
+        // Team select event
+        const teamSelect = document.getElementById('teamSelect');
+        teamSelect.addEventListener('change', () => {
+            selectedIndex = teamSelect.value ? parseInt(teamSelect.value) : null;
+            renderResult();
+        });
+
+        // Show opponents checkbox event
+        const showOpponentsCheckbox = document.getElementById('showOpponents');
+        showOpponentsCheckbox.addEventListener('change', () => {
+            renderResult();
+        });
+    </script>
+</body>
+</html>

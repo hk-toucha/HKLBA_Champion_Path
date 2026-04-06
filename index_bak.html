@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Path to Champion</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        /* CSS Reset for table elements */
+        table, th, td {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-collapse: collapse;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+        
+        /* HKFC-inspired color scheme */
+        :root {
+            --hkfc-blue: #003366;
+            --hkfc-light-blue: #4a7da5;
+            --hkfc-gold: #cc9900;
+            --hkfc-light-gold: #e6c872;
+            --hkfc-light-gray: #f5f5f5;
+            --hkfc-dark-gray: #333333;
+            --hkfc-white: #ffffff;
+            --knocked-out-bg: #f0f0f0;
+            --knocked-out-color: #999;
+        }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            font-size: 16px; 
+            line-height: 1.4; 
+            -webkit-text-size-adjust: 100%; /* Prevent mobile scaling */
+            -ms-text-size-adjust: 100%; 
+            background-color: var(--hkfc-light-gray);
+            color: var(--hkfc-dark-gray);
+        }
+        
+        /* Header-like styling */
+        body::before {
+            content: "";
+            display: block;
+            height: 8px;
+            background: linear-gradient(90deg, var(--hkfc-blue) 70%, var(--hkfc-gold) 30%);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--hkfc-blue);
+        }
+        
+        /* Form elements styling */
+        div { 
+            margin-bottom: 15px; 
+            padding: 10px;
+            background-color: var(--hkfc-white);
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--hkfc-blue);
+        }
+        
+        select, input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--hkfc-light-blue);
+            box-shadow: 0 0 0 2px rgba(74, 125, 165, 0.2);
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 8px;
+            accent-color: var(--hkfc-blue);
+        }
+        
+        #result { 
+            min-height: 50px; 
+            background-color: var(--hkfc-white);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        h3 { 
+            margin-bottom: 15px; 
+            font-size: 18px; 
+            line-height: 1.4; 
+            color: var(--hkfc-blue);
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--hkfc-gold);
+        }
+        
+        /* Table styling */
+        table { 
+            border-collapse: collapse; 
+            margin-top: 15px; 
+            width: 100%; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        th { 
+            background-color: var(--hkfc-blue);
+            color: var(--hkfc-white);
+            font-weight: bold;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        td { 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            text-align: left; 
+            font-size: 14px !important;
+            line-height: 1.4 !important; 
+            white-space: normal; 
+        }
+        
+        tr:nth-child(even) {
+            background-color: var(--hkfc-light-gray);
+        }
+        
+        tr:hover {
+            background-color: rgba(74, 125, 165, 0.1);
+        }
+        
+        /* Style for lists in Potential Opponents column */
+        td ul {
+            margin: 0;
+            padding: 0 0 0 15px;
+            list-style: disc;
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+        }
+        
+        td ul li {
+            margin: 0;
+            padding: 2px 0;
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+        }
+        
+        /* Custom styling for knocked out teams */
+        .knocked-out {
+            color: var(--knocked-out-color);
+            font-style: italic;
+        }
+        
+        /* Mobile-specific adjustments */
+        @media screen and (max-width: 768px) {
+            body {
+                margin: 10px;
+                font-size: 18px; /* Larger font size on mobile */
+            }
+            
+            div {
+                padding: 12px;
+                margin-bottom: 18px;
+            }
+            
+            label {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+            
+            select, input[type="text"] {
+                padding: 12px 14px;
+                font-size: 16px; /* Larger font for inputs */
+                max-width: 100%;
+            }
+            
+            /* Style for knocked out teams in dropdown on mobile */
+            select option.knocked-out {
+                background-color: var(--knocked-out-bg);
+                color: var(--knocked-out-color);
+            }
+            
+            table, th, td { 
+                font-size: 16px !important; 
+                padding: 10px; 
+                line-height: 1.4 !important; 
+            }
+            
+            td ul, td ul li {
+                font-size: 16px !important;
+                line-height: 1.4 !important;
+            }
+            
+            h3 { 
+                font-size: 20px; 
+            }
+            
+            #result {
+                padding: 15px;
+            }
+        }
+        
+        /* Additional responsive adjustments for very small screens */
+        @media screen and (max-width: 480px) {
+            body {
+                margin: 8px;
+                font-size: 16px;
+            }
+            
+            div {
+                padding: 10px;
+            }
+            
+            select, input[type="text"] {
+                padding: 10px 12px;
+                font-size: 16px;
+            }
+            
+            table, th, td { 
+                font-size: 14px !important; 
+                padding: 8px; 
+            }
+            
+            h3 { 
+                font-size: 18px; 
+            }
+        }
+        
+        /* Tablet adjustments */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            body {
+                margin: 15px;
+                font-size: 17px;
+            }
+            
+            select, input[type="text"] {
+                font-size: 16px;
+                padding: 10px;
+            }
+            
+            /* Style for knocked out teams in dropdown on tablet */
+            select option.knocked-out {
+                background-color: var(--knocked-out-bg);
+                color: var(--knocked-out-color);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <label for="fileSelect">Select Tournament:</label>
+        <select id="fileSelect">
+            <option value="">Select a tournament</option>
+            <option value="M-Nat-Singles">M-Nat-Singles</option>
+            <option value="M_Nat_Pairs">M-Nat-Pairs</option>
+            <option value="M_Nat_Triples">M-Nat-Triples</option>
+            <option value="M_Nat_Fours">M-Nat-Fours</option>
+            <option value="M-Nat-Indoor-Singles">M-Nat-Indoor-Singles</option>
+            <option value="M-Indoor-Pairs">M-Indoor-Pairs</option>
+            <option value="M-2x4x2-Pairs">M-2x4x2-Pairs</option>
+            <option value="M_Novice_Singles">M-Novice-Singles</option>
+            <option value="M-Novice-Pairs">M-Novice-Pairs</option>
+            <option value="W-Nat-Singles">W-Nat-Singles</option>
+            <option value="W_Nat_Pairs">W-Nat-Pairs</option>
+            <option value="W_Nat_Triples">W-Nat-Triples</option>
+            <option value="W_Nat_Fours">W-Nat-Fours</option>
+            <option value="W-Nat-Indoor-Singles">W-Nat-Indoor-Singles</option>
+            <option value="W-Indoor-Pairs">W-Indoor-Pairs</option>
+            <option value="W-2x4x2-Pairs">W-2x4x2-Pairs</option>
+            <option value="W_Novice_Singles">W-Novice-Singles</option>
+            <option value="W-Novice-Pairs">W-Novice-Pairs</option>
+            <option value="Mixed-Triples">Mixed-Triples</option>
+        </select>
+    </div>
+    <div>
+        <label for="filterInput">Filter by Player Name (e.g. Chan):</label>
+        <input type="text" id="filterInput">
+    </div>
+    <div>
+        <label for="clubSelect">Filter by Club:</label>
+        <select id="clubSelect">
+            <option value="">All Clubs</option>
+        </select>
+    </div>
+    <div>
+        <label for="teamSelect">Select Team/Player:</label>
+        <select id="teamSelect">
+            <option value="">Select a team</option>
+        </select>
+    </div>
+    <div>
+        <label for="showOpponents" style="display: inline-flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="showOpponents" checked>
+            Show Opponent Teams
+        </label>
+    </div>
+    <div id="result"></div>
+
+    <script>
+        // All JavaScript code remains exactly the same as in the original file
+        let data = null;
+        let selectedIndex = null;
+
+        // Map tournament selections to local file paths
+        const fileUrls = {
+            'Mixed-Triples': './data/Mixed-Triples.gz',
+            'M-Nat-Indoor-Singles': './data/M-Nat-Indoor-Singles.gz',
+            'W-Nat-Indoor-Singles': './data/W-Nat-Indoor-Singles.gz',
+            'M-Indoor-Pairs': './data/M-Indoor-Pairs.gz',
+            'W-Indoor-Pairs': './data/W-Indoor-Pairs.gz',
+            'M_Nat_Pairs': './data/M_Nat_Pairs.gz',
+            'W_Nat_Pairs': './data/W_Nat_Pairs.gz',
+            'M-Nat-Singles': './data/M-Nat-Singles.gz',
+            'W-Nat-Singles': './data/W-Nat-Singles.gz',
+            'M_Nat_Triples': './data/M_Nat_Triples.gz',
+            'W_Nat_Triples': './data/W_Nat_Triples.gz',
+            'M_Nat_Fours': './data/M_Nat_Fours.gz',
+            'W_Nat_Fours': './data/W_Nat_Fours.gz',
+            'M_Novice_Singles': './data/M_Novice_Singles.gz',
+            'W_Novice_Singles': './data/W_Novice_Singles.gz',
+            'M-Novice-Pairs': './data/M-Novice-Pairs.gz',
+            'W-Novice-Pairs': './data/W-Novice-Pairs.gz',
+            'M-2x4x2-Pairs': './data/M-2x4x2-Pairs.gz',
+            'W-2x4x2-Pairs': './data/W-2x4x2-Pairs.gz'
+        };
+
+        // Load and decompress gzip JSON file when tournament is selected
+        const fileSelect = document.getElementById('fileSelect');
+        fileSelect.addEventListener('change', async () => {
+            const selectedFile = fileSelect.value;
+            if (selectedFile) {
+                try {
+                    // Fetch the gzip file from local path
+                    const response = await fetch(fileUrls[selectedFile], {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/octet-stream'
+                        }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${selectedFile}.gz: ${response.statusText}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    // Decompress using pako
+                    const decompressed = pako.ungzip(uint8Array, { to: 'string' });
+                    // Log the decompressed content for debugging
+                    // console.log('Decompressed content:', decompressed);
+                    try {
+                        data = JSON.parse(decompressed);
+                    } catch (parseError) {
+                        throw new Error(`Invalid JSON in ${selectedFile}.gz: ${parseError.message}`);
+                    }
+                    document.getElementById('teamSelect').innerHTML = '<option value="">Select a team</option>'; // Clear team select
+                    selectedIndex = null;
+                    populateClubs();
+                    // populate all the teams initially
+                    populateTeams('', '');
+                    document.getElementById('result').innerHTML = ''; // Clear result
+                } catch (error) {
+                    alert('Error processing file: ' + error.message);
+                    console.error('Error details:', error);
+                }
+            }
+        });
+
+        // Populate club dropdown with unique clubs, HKFC first if exists
+        function populateClubs() {
+            const clubSelect = document.getElementById('clubSelect');
+            clubSelect.innerHTML = '<option value="">All Clubs</option>';
+            if (!data) return;
+            let clubs = [...new Set(data.map(team => team.club))].sort();
+            // Move "HKFC" to the front if it exists
+            const hkfcIndex = clubs.indexOf("HKFC");
+            if (hkfcIndex !== -1) {
+            clubs.splice(hkfcIndex, 1);
+            clubs.unshift("HKFC");
+            }
+            clubs.forEach(club => {
+            const opt = document.createElement('option');
+            opt.value = club;
+            opt.textContent = club;
+            clubSelect.appendChild(opt);
+            });
+        }
+
+        // Filter input event for player name
+        const filterInput = document.getElementById('filterInput');
+        filterInput.addEventListener('input', () => {
+            if (data) {
+                const club = document.getElementById('clubSelect').value;
+                populateTeams(filterInput.value.toLowerCase(), club);
+            }
+        });
+
+        // Club select event
+        const clubSelect = document.getElementById('clubSelect');
+        clubSelect.addEventListener('change', () => {
+            if (data) {
+                populateTeams(filterInput.value.toLowerCase(), clubSelect.value);
+            }
+        });
+
+        // Function to populate team select based on filters
+        function populateTeams(playerFilter, clubFilter) {
+            const teamSelect = document.getElementById('teamSelect');
+            teamSelect.innerHTML = '<option value="">Select a team</option>';
+            if (!data) return;
+            // Sort teams: those with HA first, then those without HA
+            // console.log('Populating teams with playerFilter:', playerFilter, 'clubFilter:', clubFilter);
+            const sortedTeams = data
+                .map((team, index) => ({ team, index }))
+                .filter(({ team }) => {
+                    const matchesPlayer = team.players.some(player => player.toLowerCase().includes(playerFilter));
+                    const matchesClub = clubFilter === '' || team.club === clubFilter;
+                    return matchesPlayer && matchesClub;
+                })
+                .sort((a, b) => {
+                    const hasA = a.team.HA && a.team.HA.trim() !== '';
+                    const hasB = b.team.HA && b.team.HA.trim() !== '';
+                    return hasA === hasB ? 0 : hasA ? -1 : 1;
+                });
+            // console.log('Filtered and sorted teams:', sortedTeams);
+            sortedTeams.forEach(({ team, index }) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                const isKnockedOut = !team.HA || team.HA.trim() === '';
+                opt.textContent = `${isKnockedOut ? '[NA] - ' : ''}${team.club} - ${team.players.join(", ")}`;
+                if (isKnockedOut) {
+                    opt.className = 'knocked-out';
+                }
+                // console.log('Adding team to select:', opt.textContent);
+                teamSelect.appendChild(opt);
+            });
+        }
+
+        // Function to render the result table
+        function renderResult() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            if (!data || selectedIndex === null) return;
+            const team = data[selectedIndex];
+            const teamDisplay = `${team.club} - ${team.players.join(", ")}`;
+            const showOpponentsCheckbox = document.getElementById('showOpponents');
+            const showOpponents = showOpponentsCheckbox.checked;
+            if (!team.HA || team.HA.trim() === '') {
+                resultDiv.innerHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><td>Path to Champion is not available</td></tr></table>`;
+                return;
+            }
+            const paths = team.path; // From early rounds to Final
+            const has = team.HA.split('');
+            let tableHTML = `<h3>Path to Champion: ${teamDisplay} 🏆</h3><table><tr><th>Round</th><th>Home/Away</th>`;
+            if (showOpponents) {
+                tableHTML += '<th>Potential Opponents</th>';
+            }
+            tableHTML += '</tr>';
+            paths.forEach((round, i) => {
+                const haText = has[i] === 'H' ? 'Home' : 'Away';
+                tableHTML += `<tr><td>${round}</td><td>${haText}</td>`;
+                if (showOpponents) {
+                    const opposite = has[i] === 'H' ? 'A' : 'H';
+                    const prefix = i > 0 ? team.HA.slice(0, i) : '';
+                    const teamTree = team.tree;
+                    const opponents = data.filter(other => {
+                        return other !== team &&
+                               other.HA &&
+                               other.HA.length >= i + 1 &&
+                               other.HA[i] === opposite &&
+                               (i === 0 || other.HA.slice(0, i) === prefix) &&
+                               other.tree === teamTree;
+                    }).map(other => `<li>${other.club} - ${other.players.join(", ")} - ${other.home_green}</li>`);
+                    const opponentsText = opponents.length > 0 ? `<ul>${opponents.join("")}</ul>` : "None";
+                    tableHTML += `<td>${opponentsText}</td>`;
+                }
+                tableHTML += '</tr>';
+            });
+            tableHTML += '</table>';
+            resultDiv.innerHTML = tableHTML;
+        }
+
+        // Team select event
+        const teamSelect = document.getElementById('teamSelect');
+        teamSelect.addEventListener('change', () => {
+            selectedIndex = teamSelect.value ? parseInt(teamSelect.value) : null;
+            renderResult();
+        });
+
+        // Show opponents checkbox event
+        const showOpponentsCheckbox = document.getElementById('showOpponents');
+        showOpponentsCheckbox.addEventListener('change', () => {
+            renderResult();
+        });
+    </script>
+</body>
+</html>
