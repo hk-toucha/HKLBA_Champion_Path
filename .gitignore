@@ -20,3 +20,6 @@ venv/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# Local PAT for publish_github.ps1 (never commit)
+.github_token
