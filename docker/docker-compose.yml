@@ -1,0 +1,13 @@
+services:
+  champion_path:
+    build:
+      context: .
+      dockerfile: dockerfile
+    image: champion_path
+    container_name: champion_path_job
+    restart: always
+    environment:
+      - TZ=Asia/Hong_Kong
+    volumes:
+      - ${ARCHIVE_HOST_PATH:-/var/champion_path/archive}:/app/archive
+      - ${DATA_HOST_PATH:-/var/www/championpath/data}:/app/local_data
