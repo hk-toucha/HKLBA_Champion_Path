@@ -185,14 +185,20 @@ def parse_fixtures(pdf_path):
                         # Fallback: extract from first row
                         current_deadline = extract_deadline(first_row)
 
-                    # Determine if round info was found in the text above the table
-                    # Test if the 1st row or 2nd row and 1st column contain "ref" (case-insensitive)
-                    if (len(table) > 0 and table[0][0] and "ref" in str(table[0][0]).lower()):
-                        headers = [h.strip() if h else "" for h in table[0]]
-                        fixturestart_row = 1
-                    elif (len(table) > 1 and table[1][0] and "ref" in str(table[1][0]).lower()):
-                        headers = [h.strip() if h else "" for h in table[1]]
-                        fixturestart_row = 2
+                    # Find the header row containing "ref" in the first column.
+                    # Some PDFs have annotation/info rows above the actual header,
+                    # so scan all rows instead of only checking rows 0 and 1.
+                    headers = None
+                    fixturestart_row = None
+                    for hdr_idx in range(len(table)):
+                        cell0 = table[hdr_idx][0]
+                        if cell0 and "ref" in str(cell0).lower():
+                            headers = [h.strip() if h else "" for h in table[hdr_idx]]
+                            fixturestart_row = hdr_idx + 1
+                            break
+
+                    if headers is None:
+                        continue
 
                     try:
                         # Find column indices
