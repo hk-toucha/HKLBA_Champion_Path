@@ -5,6 +5,9 @@ privatekey
 # Source PDFs stay local only (large / rights); do not check in
 *.pdf
 
+# Local data under docker (fixtures, downloads); not for the repo
+docker/data/
+
 # Python
 __pycache__/
 *.py[cod]
