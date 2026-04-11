@@ -18,7 +18,7 @@ RUN echo '#!/bin/bash\ncd /app\nPATH=$PATH:/usr/local/bin;export PATH\n/usr/loca
     chmod +x /app/run_extraction.sh
 
 # Add the cron job
-RUN echo "10,40 10-19 * * 1-5 /app/run_extraction.sh >> /var/log/cron.log 2>&1" | crontab -
+RUN echo "10,40 10-21 * * * /app/run_extraction.sh >> /var/log/cron.log 2>&1" | crontab -
 
 RUN touch /var/log/cron.log
 

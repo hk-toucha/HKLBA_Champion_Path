@@ -8,6 +8,8 @@ import re
 import pdfplumber
 from datetime import datetime
 import json
+import subprocess
+import platform
 
 # Define the URL
 url = "https://www.bowls.org.hk/fixtures-a-conditions-of-play/"
@@ -32,6 +34,20 @@ pdfs_by_category = {
     "women": [],
     "mixed": []
 }
+
+# Dictionary to hold Google Sheets by category
+sheets_by_category = {
+    "men": [],
+    "women": [],
+    "mixed": []
+}
+
+SUPPORTED_GAMES = [
+    'National Singles', 'National Pairs', 'National Triples', 'National Fours',
+    'Indoor Singles', 'Indoor Pairs', '2-4-2 Pairs', 'Novice Singles',
+    'Novice Pairs', 'Novice Triples',
+    'Mixed Pairs', 'Angela Chau Memorial Mixed Triples', 'Mixed Fours',
+]
 
 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 print(f"Starting processing website pdf: {now}")
@@ -69,42 +85,35 @@ for table in tables:
         if len(cells) < 2:
             continue  # Not enough columns to process
 
+        # Helper: classify a link as PDF or Google Sheet and append to the
+        # appropriate category list.
+        def collect_link(a_tag, category):
+            href = a_tag['href']
+            desc = a_tag.text.strip() or f"{category.capitalize()} fixture"
+            if not any(game in desc for game in SUPPORTED_GAMES):
+                return
+            if href.endswith('.pdf'):
+                pdfs_by_category[category].append((desc, href))
+            elif 'docs.google.com/spreadsheets' in href:
+                sheets_by_category[category].append((desc, href))
+
         # 1st column: Men, 3rd: Women, 5th: Mixed (if exists)
         # Men
         men_cell = cells[0]
         for a in men_cell.find_all('a', href=True):
-            if a['href'].endswith('.pdf'):
-                desc = a.text.strip() or "Men PDF"
-                # only process the following games 'National Singles', 'National Pairs', 'National Triples', 'National Fours', 'Indoor Singles', 'Indoor Pairs', '2-4-2 Pairs', 'Novice Singles', 'Novice Pairs', 'Novice Triples'
-                if any(game in desc for game in [
-                    'National Singles', 'National Pairs', 'National Triples', 'National Fours',
-                    'Indoor Singles', 'Indoor Pairs', '2-4-2 Pairs', 'Novice Singles',
-                    'Novice Pairs', 'Novice Triples']):
-                    pdfs_by_category["men"].append((desc, a['href']))
+            collect_link(a, "men")
 
         # Women
         if len(cells) > 2:
             women_cell = cells[2]
             for a in women_cell.find_all('a', href=True):
-                if a['href'].endswith('.pdf'):
-                    desc = a.text.strip() or "Women PDF"
-                    # only process the following games 'National Singles', 'National Pairs', 'National Triples', 'National Fours', 'Indoor Singles', 'Indoor Pairs', '2-4-2 Pairs', 'Novice Singles', 'Novice Pairs', 'Novice Triples'
-                    if any(game in desc for game in [
-                        'National Singles', 'National Pairs', 'National Triples', 'National Fours',
-                        'Indoor Singles', 'Indoor Pairs', '2-4-2 Pairs', 'Novice Singles',
-                        'Novice Pairs', 'Novice Triples']):
-                        pdfs_by_category["women"].append((desc, a['href']))
+                collect_link(a, "women")
 
         # Mixed
         if len(cells) > 4:
             mixed_cell = cells[4]
             for a in mixed_cell.find_all('a', href=True):
-                if a['href'].endswith('.pdf'):
-                    desc = a.text.strip() or "Mixed PDF"
-                    # only process the following games 'Mixed Pairs', 'Angela Chau Memorial Mixed Triples', 'Mixed Fours'
-                    if any(game in desc for game in [
-                        'Mixed Pairs', 'Angela Chau Memorial Mixed Triples', 'Mixed Fours']):
-                        pdfs_by_category["mixed"].append((desc, a['href']))
+                collect_link(a, "mixed")
 
 # Collect all current PDF file names
 current_file_names = set()
@@ -194,9 +203,95 @@ for category, pdfs in pdfs_by_category.items():
         shutil.copy2(download_path, archive_path)
         print(f"Copied {file_name} to archive")
 
+# ---------------------------------------------------------------------------
+# Process Google Sheets (Phase 2, 3, 6)
+# ---------------------------------------------------------------------------
+
+def extract_sheet_id(sheet_url):
+    m = re.search(r'/spreadsheets/d/([a-zA-Z0-9_-]+)', sheet_url)
+    return m.group(1) if m else None
+
+
+def derive_base_name(category, desc):
+    """Derive a file-system-friendly base name from the category and
+    description, e.g. ('men', 'National Singles') -> 'M-Nat-Singles'."""
+    prefix = {"men": "M", "women": "W", "mixed": "Mixed"}.get(category, category[0].upper())
+    name = desc.strip()
+    name = name.replace("National", "Nat")
+    name = re.sub(r'\s+', '-', name)
+    return f"{prefix}-{name}"
+
+
+def fetch_sheet_content_hash(sheet_id):
+    """Fetch all tabs of a Google Sheet via the gviz endpoint and return
+    the MD5 hash of the concatenated content."""
+    from fixture_parser import get_sheet_tabs, fetch_sheet_tab_as_table
+    tabs = get_sheet_tabs(sheet_id)
+    blob = ""
+    for tab_name in tabs:
+        rows = fetch_sheet_tab_as_table(sheet_id, tab_name)
+        for row in rows:
+            blob += "|".join(str(c or "") for c in row) + "\n"
+    return hashlib.md5(blob.encode('utf-8')).hexdigest()
+
+
+current_sheet_hash_files = set()
+
+for category, sheet_list in sheets_by_category.items():
+    for desc, href in sheet_list:
+        sheet_id = extract_sheet_id(href)
+        if not sheet_id:
+            print(f"Could not extract sheet ID from {href}, skipping")
+            continue
+
+        base_name = derive_base_name(category, desc)
+        hash_file_name = f"{base_name}.sheet_hash"
+        current_sheet_hash_files.add(hash_file_name)
+        archive_hash_path = os.path.join(archive_dir, hash_file_name)
+
+        print(f"\nProcessing Google Sheet for {category} - {desc}")
+        print(f"  Sheet ID: {sheet_id}")
+        print(f"  Base name: {base_name}")
+
+        current_hash = fetch_sheet_content_hash(sheet_id)
+        print(f"  Content hash: {current_hash}")
+
+        if os.path.exists(archive_hash_path):
+            with open(archive_hash_path, 'r') as f:
+                archived_hash = f.read().strip()
+            if current_hash == archived_hash:
+                print(f"  No changes detected, skipping")
+                update_date = datetime.now().strftime('%Y-%m-%d')
+                pdf_info.append((base_name, hash_file_name, href, update_date))
+                continue
+
+        with open(archive_hash_path, 'w') as f:
+            f.write(current_hash)
+
+        update_date = datetime.now().strftime('%Y-%m-%d')
+        pdf_info.append((base_name, hash_file_name, href, update_date))
+
+        output_path = os.path.join("./data", f"{base_name}.gz")
+        os.makedirs("data", exist_ok=True)
+        print(f"  Running fixture_parser.py with sheet URL")
+        subprocess.run(
+            ["python", "fixture_parser.py", href, output_path],
+            check=True
+        )
+
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            os.makedirs("./local_data", exist_ok=True)
+            shutil.copy2(output_path, os.path.join("./local_data", os.path.basename(output_path)))
+            print(f"  Output: {output_path}")
+
 # Remove files from archive that are no longer present on the webpage
+# (keep both PDF files and sheet hash files that are still current)
 for file in os.listdir(archive_dir):
-    if file not in current_file_names:
+    if file.endswith('.sheet_hash'):
+        if file not in current_sheet_hash_files:
+            os.remove(os.path.join(archive_dir, file))
+            print(f"Removed old sheet hash {file} from archive")
+    elif file not in current_file_names:
         os.remove(os.path.join(archive_dir, file))
         print(f"Removed old file {file} from archive")
 
@@ -209,8 +304,6 @@ with open(os.path.join(download_dir, "fixture_list.json"), "w") as f:
 shutil.copy2(os.path.join(download_dir, "fixture_list.json"), "./data/")
 
 # for each of the updated files from the download directory, call the fixture_parser.py script with the file path as argument and .\data\filename.gz as output path
-import subprocess
-import platform
 for file in os.listdir(download_dir):
     file_path = os.path.join(download_dir, file)
     if file.lower().endswith(".pdf"):
@@ -255,7 +348,15 @@ for file in os.listdir(download_dir):
 # Print extracted information
 print("\nExtracted PDFs:")
 for category, pdfs in pdfs_by_category.items():
-    print(f"\n{category.capitalize()} Competitions:")
+    print(f"\n{category.capitalize()} Competitions (PDF):")
     for desc, href in pdfs:
         file_name = os.path.basename(urlparse(urljoin(url, href)).path)
-        print(f"- {desc}: {file_name}")
+        print(f"  - {desc}: {file_name}")
+
+print("\nExtracted Google Sheets:")
+for category, sheet_list in sheets_by_category.items():
+    if sheet_list:
+        print(f"\n{category.capitalize()} Competitions (Google Sheet):")
+        for desc, href in sheet_list:
+            sheet_id = extract_sheet_id(href)
+            print(f"  - {desc}: {sheet_id}")
